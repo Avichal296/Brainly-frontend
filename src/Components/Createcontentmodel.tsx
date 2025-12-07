@@ -19,11 +19,13 @@ interface Content {
 interface CreateContentModalProps {
     open: boolean;
     onClose: () => void;
-    onAddContent?: (content: Content) => void;
+    // This prop should be passed down from the parent (Dashboard) and will
+    // call the refresh function to update the content list.
+    onAddContent?: (content: Omit<Content, 'id'>) => void; 
 }
 
 // controlled component
-export function CreateContentModal({open, onClose}: CreateContentModalProps) {
+export function CreateContentModal({open, onClose, onAddContent}: CreateContentModalProps) {
     const titleRef = useRef<HTMLInputElement>(null);
     const linkRef = useRef<HTMLInputElement>(null);
     const [type, setType] = useState(ContentType.Youtube);
@@ -60,7 +62,7 @@ export function CreateContentModal({open, onClose}: CreateContentModalProps) {
 
     async function addContent() {
         setLoading(true);
-        setError(null);
+        setError(null); // Clear previous errors before submission
         const title = titleRef.current?.value;
         const link = linkRef.current?.value;
         const token = localStorage.getItem("token");
@@ -79,7 +81,8 @@ export function CreateContentModal({open, onClose}: CreateContentModalProps) {
         }
 
         try {
-            const res = await axios.post(`${BACKEND_URL}/api/v1/content`, {
+            // The request is sent and returns 200 OK
+            await axios.post(`${BACKEND_URL}/api/v1/content`, {
                 link,
                 title,
                 type
@@ -89,15 +92,23 @@ export function CreateContentModal({open, onClose}: CreateContentModalProps) {
                 }
             });
 
-            alert("Content added successfully");
+            // --- FIX APPLIED HERE ---
+            // 1. Removed the blocking `alert()` for cleaner UX.
+            // 2. Corrected the `onAddContent` call to pass the necessary data
+            //    without trying to access a non-existent `res.data.id`.
+            
+            // Call the parent function to refresh the content list
             onAddContent && onAddContent({ 
-              id: res.data.id, 
               title, 
               link, 
               type 
             });
+            
+            // Close the modal upon successful submission
             onClose();
+
         } catch (err: any) {
+            // This block only executes on 4xx or 5xx status codes
             if (err.response && err.response.status === 403) {
                 setError("Permission denied. Please check your credentials or login again.");
             } else {
@@ -142,6 +153,7 @@ export function CreateContentModal({open, onClose}: CreateContentModalProps) {
                             }}></Button>
                         </div>
                     </div>
+                    {/* The error state controls the display of the red error message */}
                     {error && <div className="text-red-600 text-center mb-2">{error}</div>}
                     <div className="flex justify-center">
                         <Button onClick={addContent} variant="primary" text={loading ? "Submitting..." : "Submit"} loading={loading} />
